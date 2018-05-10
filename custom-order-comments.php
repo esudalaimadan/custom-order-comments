@@ -14,36 +14,37 @@ if(!class_exists('Custom_Order_Comments'))
         /* Called when Custom_Order_Comments class is instantiated */
         public function __construct()
         {
-           add_action( 'add_meta_boxes', array( $this, 'add_priority' ) );
-           add_action( 'edit_comment', array( $this, 'save_priority' ) );
-           add_filter( 'manage_edit-comments_columns', array( $this, 'add_priority_column' ) );
-           add_action( 'manage_comments_custom_column', array( $this, 'display_priority_column' ), 10, 2 );
+           add_action( 'add_meta_boxes', array( $this, 'add_featured' ) );
+           add_action( 'edit_comment', array( $this, 'save_featured' ) );
+           add_filter( 'manage_edit-comments_columns', array( $this, 'add_featured_column' ) );
+           add_action( 'manage_comments_custom_column', array( $this, 'display_featured_column' ), 10, 2 );
            add_action( 'pre_get_comments', array( $this, 'prepare_comments_query' ) );
         }
         
-        /* Adds Priority meta box */
-        public function add_priority()
+        /* Adds featured meta box */
+        public function add_featured()
         {
             add_meta_box(
-                'priority_box', 
+                'featured_box', 
                 __( 'Position in List of Comments '), 
-                array( $this, 'add_priority_box_content' ), 
+                array( $this, 'add_featured_box_content' ), 
                 'comment',
-                'normal'
+                'normal',
+                'high'
                 );
         }
 
-        public function add_priority_box_content( $comment ){
-            wp_nonce_field( basename( __FILE__ ), 'priority_nonce');
-            $current_pos = get_comment_meta( $comment->comment_ID, 'priority', true );            
-            echo '<p>' . __( 'Enter the Position at which you would like the comment to appear.  For example, "1" will appear first and "2" will appear second, and so forth.' ) . '</p>';
+        public function add_featured_box_content( $comment ){
+            wp_nonce_field( basename( __FILE__ ), 'featured_nonce');
+            $featured = get_comment_meta( $comment->comment_ID, 'featured', true );            
+            echo '<label>' . __( 'Please check for featured comment.' ) . '</label>';
             ?>
-            <p><input type="number" name="priority" value="<?php echo $current_pos; ?>" /></p>
+            <p><input type="checkbox" name="featured" value="yes" <?php if ( $featured == 'yes' ) echo 'checked="checked"'; ?> /></p>
             <?php
         }        
 
-        public function save_priority( $comment_id ){
-            if ( ! isset( $_POST['priority_nonce']) || ! wp_verify_nonce( $_POST['priority_nonce'], basename( __FILE__ ) ) ){
+        public function save_featured( $comment_id ){
+            if ( ! isset( $_POST['featured_nonce']) || ! wp_verify_nonce( $_POST['featured_nonce'], basename( __FILE__ ) ) ){
                 return;
             } 
             if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ){
@@ -52,28 +53,40 @@ if(!class_exists('Custom_Order_Comments'))
             if ( ! current_user_can( 'edit_comment', $comment_id ) ){
                 return;
             }
-            if ( isset( $_POST['priority'] ) ){
-                update_comment_meta( $comment_id, 'priority', $_POST['priority'] );
+            if ( isset( $_POST['featured'] ) ){
+                update_comment_meta( $comment_id, 'featured', $_POST['featured'] );
+            }else{
+                delete_comment_meta( $comment_id, 'featured');
             }
         }
-        /* Adds Priority column in admin end */
-        public function add_priority_column( $columns ){
-            $columns['priority'] = __( 'Priority' );
+        /* Adds featured column in admin end */
+        public function add_featured_column( $columns ){
+            $columns['featured'] = __( 'Featured' );
             return $columns;
         }
 
-        public function display_priority_column( $column, $comment_id ){
-            if( $column == 'priority' ){
-                echo '<p>' . get_comment_meta( $comment_id, 'priority', true ) . '</p>';
+        public function display_featured_column( $column, $comment_id ){
+            if( $column == 'featured' ){
+                echo '<p>' . get_comment_meta( $comment_id, 'featured', true ) . '</p>';
             }
         }
         
-        /* TODO Not sure whether pre_get_comments hook works */
-        public function prepare_comments_query($query){
-            $query->set( 'order_by', 'meta_value' );
-            $query->set( 'meta_key', 'priority' );
-            $query->set( 'order', 'ASC' );
-            return $query;
+        /* Query to display both featured as well as non-featured comments */
+        public function prepare_comments_query( $query ) {            
+            $query->query_vars['meta_query'] = array(
+                'relation' => 'OR',
+                array(
+                    'key' => 'featured',
+                    'value' => 'yes',
+                    'compare' => '='
+                     ),
+                array(
+                    'key' => 'featured',
+                    'compare' => 'NOT EXISTS'
+                    )
+                );                
+            $query->query_vars['orderby'] = array('meta_value' => 'DESC');
+            $query->meta_query->parse_query_vars( $query->query_vars);
         }
 
         public static function activate()
