@@ -85,8 +85,7 @@ if(!class_exists('Custom_Order_Comments'))
                     'compare' => 'NOT EXISTS'
                     )
                 );                
-            $query->query_vars['orderby'] = array('meta_value' => 'DESC');
-            $query->meta_query->parse_query_vars( $query->query_vars);
+            $query->query_vars['orderby'] = array('meta_value' => 'DESC');            
         }
 
         public static function activate()
